@@ -11,21 +11,31 @@ import (
 )
 
 // ExecCommand 执行cmd命令操作
-func ExecCommand(name string, args []string, timeout ...time.Duration) (out string, err error) {
+func execCommand(name string, args []string, opt ...Option) (out string, err error) {
 	var (
 		stderr, stdout bytes.Buffer
 		expire         = 30 * time.Minute
 		errs           []string
 	)
 
-	if len(timeout) > 0 {
-		expire = timeout[0]
+	if len(opt) > 0 && opt[0].Timeout != nil {
+		expire = *opt[0].Timeout
 	}
 
 	cmd := exec.Command(name, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	if len(opt) > 0 && opt[0].Stdout != nil {
+		cmd.Stdout = opt[0].Stdout
+	} else {
+		cmd.Stdout = &stdout
+	}
+
+	if len(opt) > 0 && opt[0].Stderr != nil {
+		cmd.Stderr = opt[0].Stderr
+	} else {
+		cmd.Stderr = &stderr
+	}
+
 	err = cmd.Start()
 	if err != nil {
 		err = fmt.Errorf("%s\n%s", err.Error(), stderr.String())
@@ -36,6 +46,9 @@ func ExecCommand(name string, args []string, timeout ...time.Duration) (out stri
 	if cmd.Process != nil && cmd.Process.Pid != 0 {
 		pid = cmd.Process.Pid
 		pidMap.Store(pid, pid)
+		if len(opt) > 0 && opt[0].Callback != nil {
+			opt[0].Callback(pid)
+		}
 	}
 	defer func() {
 		if pid != 0 {
@@ -63,13 +76,8 @@ func ExecCommand(name string, args []string, timeout ...time.Duration) (out stri
 	return
 }
 
-// 当主程序退出时，从pidMap中获取所有的pid，然后kill掉
-func CloseChildProccess() {
-	pidMap.Range(func(key, value interface{}) bool {
-		if pid, ok := value.(int); ok {
-			fmt.Println("kill pid:", pid)
-			syscall.Kill(-pid, syscall.SIGKILL)
-		}
-		return true
-	})
+func closeProcess(pid int) {
+	fmt.Println("kill pid:", pid)
+	syscall.Kill(-pid, syscall.SIGKILL)
+	pidMap.Delete(pid)
 }
