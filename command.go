@@ -10,6 +10,7 @@ type Option struct {
 	Timeout  *time.Duration
 	Stdout   *os.File
 	Stderr   *os.File
+	Dir      string // 执行命令的目录
 	Callback func(pid int)
 }
 

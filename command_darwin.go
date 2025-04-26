@@ -16,13 +16,18 @@ func execCommand(name string, args []string, opt ...Option) (out string, err err
 		stderr, stdout bytes.Buffer
 		expire         = 30 * time.Minute
 		errs           []string
+		cmd            = exec.Command(name, args...)
 	)
 
-	if len(opt) > 0 && opt[0].Timeout != nil {
-		expire = *opt[0].Timeout
+	if len(opt) > 0 {
+		if opt[0].Timeout != nil {
+			expire = *opt[0].Timeout
+		}
+		if opt[0].Dir != "" {
+			cmd.Dir = opt[0].Dir
+		}
 	}
 
-	cmd := exec.Command(name, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if len(opt) > 0 && opt[0].Stdout != nil {
